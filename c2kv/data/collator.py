@@ -15,6 +15,26 @@ _OBJECTIVE_IDS = {
 }
 
 
+def build_teacher_layout(plan: LayoutPlan):
+    """Return teacher tokens and student-predictor to teacher-predictor indices."""
+
+    excluded_roles = {
+        TokenRole.MEMORY,
+        TokenRole.RECONSTRUCTION_MARKER,
+        TokenRole.RECONSTRUCTION,
+    }
+    kept_indices = tuple(
+        index for index, role in enumerate(plan.token_roles) if role not in excluded_roles
+    )
+    teacher_index = [-1] * plan.sequence_length
+    for compact_target_index, original_target_index in enumerate(kept_indices):
+        student_predictor_index = original_target_index - 1
+        teacher_predictor_index = compact_target_index - 1
+        if student_predictor_index >= 0 and teacher_predictor_index >= 0:
+            teacher_index[student_predictor_index] = teacher_predictor_index
+    return kept_indices, tuple(teacher_index)
+
+
 class C2KVCollator:
     def __init__(
         self,
@@ -108,16 +128,7 @@ class C2KVCollator:
         teacher_index = torch.full((batch_size, target), -1, dtype=torch.long)
 
         for batch_index, plan in enumerate(batch):
-            kept = [
-                index
-                for index, role in enumerate(plan.token_roles)
-                if role
-                not in {
-                    TokenRole.MEMORY,
-                    TokenRole.RECONSTRUCTION_MARKER,
-                    TokenRole.RECONSTRUCTION,
-                }
-            ]
+            kept, aligned_teacher_index = build_teacher_layout(plan)
             size = len(kept)
             teacher_input_ids[batch_index, :size] = torch.tensor(
                 [plan.input_ids[index] for index in kept], dtype=torch.long
@@ -128,8 +139,9 @@ class C2KVCollator:
             teacher_attention[batch_index, 0, :size, :size] = torch.triu(
                 torch.ones((size, size), dtype=torch.bool), diagonal=1
             )
-            for compact_index, original_index in enumerate(kept):
-                teacher_index[batch_index, original_index] = compact_index
+            teacher_index[batch_index, : plan.sequence_length] = torch.tensor(
+                aligned_teacher_index, dtype=torch.long
+            )
             if size < target:
                 padding = torch.arange(size, target)
                 teacher_attention[batch_index, 0, padding, padding] = False

@@ -18,7 +18,7 @@ Megatron-SWIFT 调度；Transformers 只保留在导出后的评测兼容层。�
 
 | 层级 | 状态 | 已验证内容 |
 | --- | --- | --- |
-| 本地纯逻辑 | 通过 | 配置、压缩率调度、layout、mask、RoPE 位置、JSON/JSONL 索引，共 16 个单元测试 |
+| 本地纯逻辑 | 通过 | 配置、压缩率调度、layout、mask、RoPE 位置、蒸馏对齐、JSON/JSONL 索引，共 17 个单元测试 |
 | 本地静态入口 | 通过 | 全量语法编译、训练/导出/评测 dry-run、`git diff --check` |
 | H200 运行时 | 阻塞 | SSH 在跳板阶段超时，尚未形成 CUDA/MCore 训练、checkpoint、resume 或 W&B 证据 |
 

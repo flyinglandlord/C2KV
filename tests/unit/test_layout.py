@@ -3,6 +3,7 @@ from unittest import TestCase
 from c2kv.core.layout import LayoutCompiler
 from c2kv.core.masking import allowed_key_indices, build_allowed_attention, iter_allowed_key_ranges
 from c2kv.core.types import ObjectiveKind, TokenRole, TokenizedExample
+from c2kv.data.collator import build_teacher_layout
 
 
 def build_plan(reconstruct=False):
@@ -61,3 +62,19 @@ class LayoutCompilerTest(TestCase):
             for start, end in iter_allowed_key_ranges(plan, query_index):
                 from_ranges.update(range(start, end))
             self.assertEqual(from_ranges, {index for index, allowed in enumerate(row) if allowed})
+
+    def test_teacher_alignment_crosses_a_memory_boundary(self):
+        example = TokenizedExample(
+            sample_id="pretrain-example",
+            system_tokens=(),
+            document_tokens=((11, 12, 13, 14),),
+            query_tokens=(),
+            response_tokens=(21, 22),
+        )
+        plan = LayoutCompiler(99, 98).compile(example, compression_ratio=2)
+        kept, teacher_index = build_teacher_layout(plan)
+        first_response = plan.response_span.start
+        student_predictor = first_response - 1
+        teacher_target = kept.index(first_response)
+        self.assertEqual(plan.token_roles[student_predictor], TokenRole.MEMORY)
+        self.assertEqual(teacher_index[student_predictor], teacher_target - 1)
