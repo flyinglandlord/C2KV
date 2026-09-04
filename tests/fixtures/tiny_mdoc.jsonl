@@ -1,0 +1,2 @@
+{"id":"tiny-1","system":"Answer from the documents.","documents":["Paris is the capital of France.","Berlin is the capital of Germany."],"question":"What is the capital of France?","answer":"Paris."}
+{"id":"tiny-2","system":"Answer from the documents.","documents":["Water freezes at zero degrees Celsius.","Water boils at one hundred degrees Celsius at sea level."],"question":"At what temperature does water freeze?","answer":"Zero degrees Celsius."}

@@ -1,0 +1,13 @@
+{
+  "backend": "c2kv",
+  "model": "outputs/qwen3-4b-c2kv-hf",
+  "dataset": "hotpotqa",
+  "dataset_path": null,
+  "output_file": "results/hotpotqa/qwen3-4b-c2kv.jsonl",
+  "max_examples": 500,
+  "cut_length": 1024,
+  "profile": false,
+  "only_supporting": false,
+  "cot": false,
+  "extra_args": []
+}

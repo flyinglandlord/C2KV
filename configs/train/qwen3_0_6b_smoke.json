@@ -1,0 +1,58 @@
+{
+  "model": {
+    "name_or_path": "Qwen/Qwen3-0.6B",
+    "architecture": "qwen3",
+    "dtype": "bfloat16"
+  },
+  "c2kv": {
+    "compression_ratios": [4],
+    "compression_schedule": "fixed",
+    "max_memory_slots": 32,
+    "overlap_tokens": 0,
+    "residual_type": "none",
+    "train_projections": "qkv",
+    "attention_backend": "dense_reference",
+    "dense_mask_max_tokens": 512
+  },
+  "data": {
+    "mode": "multi_document",
+    "train": ["tests/fixtures/tiny_mdoc.jsonl"],
+    "validation": [],
+    "max_document_tokens": 64,
+    "max_documents": 4,
+    "max_query_tokens": 64,
+    "max_system_tokens": 32,
+    "shuffle_seed": 42,
+    "num_workers": 0
+  },
+  "objectives": {
+    "language_model": 1.0,
+    "reconstruction": 0.1,
+    "qkv_regularization": 0.001,
+    "self_distillation": 0.0
+  },
+  "parallel": {
+    "tensor": 1,
+    "pipeline": 1,
+    "context": 1,
+    "expert": 1,
+    "sequence_parallel": false
+  },
+  "training": {
+    "output_dir": "outputs/qwen3-0.6b-smoke",
+    "micro_batch_size": 1,
+    "global_batch_size": 1,
+    "max_steps": 2,
+    "sequence_length": 512,
+    "learning_rate": 0.00002,
+    "min_learning_rate": 0.000002,
+    "warmup_fraction": 0.0,
+    "save_steps": 2,
+    "eval_steps": 2,
+    "log_steps": 1,
+    "seed": 42,
+    "gradient_checkpointing": false,
+    "wandb_project": "c2kv-megatron-smoke",
+    "wandb_run_name": "qwen3-0.6b-h200-smoke"
+  }
+}
