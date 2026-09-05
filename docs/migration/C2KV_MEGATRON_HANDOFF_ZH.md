@@ -14,16 +14,17 @@
 Megatron-SWIFT 调度；Transformers 只保留在导出后的评测兼容层。仓库本身不引入
 `pyproject.toml`、editable install、Poetry、uv 或 Hydra，全部入口均从仓库根目录直接运行。
 
-截至本报告更新时，证据分为三层：
+截至本报告更新时，证据分为四层：
 
 | 层级 | 状态 | 已验证内容 |
 | --- | --- | --- |
-| 本地纯逻辑 | 通过 | 配置、压缩率调度、layout、mask、RoPE 位置、蒸馏对齐、JSON/JSONL 索引，共 17 个单元测试 |
+| 本地纯逻辑 | 通过 | 配置、压缩率调度、layout、mask、RoPE 位置、蒸馏对齐、checkpoint metadata、JSON/JSONL 索引，共 20 个单元测试 |
 | 本地静态入口 | 通过 | 全量语法编译、训练/导出/评测 dry-run、`git diff --check` |
-| H200 运行时 | 阻塞 | SSH 在跳板阶段超时，尚未形成 CUDA/MCore 训练、checkpoint、resume 或 W&B 证据 |
+| H200 训练运行时 | 通过 | Qwen3-0.6B、BF16、单张 H200、2 step 前反向、MCore/HF checkpoint、W&B 在线同步 |
+| H200 导出与评测 | 通过 | native MCore→HF 导出、转换精度测试、legacy Qwen3 C2KV 加载与 `generate_gist` 前向 |
 
-“本地通过”不能替代 GPU 正确性。本报告不会把尚未执行的 H200 smoke、数值 parity 或
-W&B run 写成已完成。
+当前结论只覆盖单卡 Gate A 和一次 bridge/eval smoke；TP、PP、DP、SP、完整 HF/MCore C2KV
+逐层数值 parity、optimizer/RNG resume 与正式数据训练仍未执行，不能从本次结果外推。
 
 ## 2. 仓库和 Git 接管信息
 
@@ -182,6 +183,19 @@ torchrun --nproc_per_node=1 train_megatron.py \
   --config configs/train/qwen3_0_6b_smoke.json
 ```
 
+本次已验证产物：
+
+```text
+/mtc/chenjunyi1/project/C2KV-megatron/
+  outputs/qwen3-0.6b-smoke/v4-20260905-132731/
+    logging.jsonl
+    checkpoint-2/
+      iter_0000002/                 # native MCore + optimizer/RNG
+      model.safetensors             # Transformers 评测格式
+      c2kv_config.json
+    exported-hf/                    # 独立 export_megatron.py 产物
+```
+
 导出与 Transformers 评测：
 
 ```bash
@@ -200,16 +214,18 @@ python evaluate.py --config configs/eval/qwen3_4b_hotpotqa.json
 
 | 能力 | 当前状态 | 原因/下一门禁 |
 | --- | --- | --- |
-| DP | 设计支持，待 H200 | 标准 Megatron data parallel |
-| TP | 设计支持，待 H200 | fused C2KV QKV 使用同一 ColumnParallelLinear 规格 |
+| 单卡 BF16 | **已验证** | Qwen3-0.6B，2 step，checkpoint 与 W&B 完整收尾 |
+| DP | 设计支持，待专项门禁 | 标准 Megatron data parallel |
+| TP | 设计支持，待专项门禁 | fused C2KV QKV 使用同一 ColumnParallelLinear 规格 |
 | Sequence Parallel | `residual=none` 设计支持，待 H200 | memory/special selector 按 TP sequence shard 对齐 |
 | SP + residual | 配置拒绝 | chunk mean 需要跨 sequence shard 聚合 |
-| PP 主 loss | 设计支持，待 H200 | 单 structured forward，label 只在 last stage |
+| PP 主 loss | 设计支持，待专项门禁 | 单 structured forward，label 只在 last stage |
 | PP + self-distill | 配置拒绝 | teacher/student 双 forward 尚未调度化 |
 | PP + QKV regularization | 配置拒绝 | 需要跨 PP 聚合各层正则项 |
 | CP | 配置拒绝 | arbitrary C2KV mask 尚未接入 CP split/通信语义 |
 | EP/MoE | Qwen MoE 注册，待专项门禁 | attention 可复用，router/padding 行为仍需实测 |
 | MTP | 配置拒绝 | MTP layer 尚未共享 C2KV structured mask/spec |
+| MCore→HF→legacy eval | **已验证** | Qwen3 C2KV 权重加载与最小 `generate_gist` 前向通过 |
 
 “设计支持”不是“已验证”。在大规模训练前必须按下一节逐项关闭门禁。
 
@@ -217,12 +233,12 @@ python evaluate.py --config configs/eval/qwen3_4b_hotpotqa.json
 
 ### Gate A：单卡 source-to-runtime
 
-- runtime imports 全部成功；
-- Qwen3-0.6B 两步 BF16 smoke 无 NaN/OOM；
-- 只有 `c2kv_linear_qkv` 和 `c2kv_special_embeddings` 有梯度并发生更新；
-- base 权重 hash 在前后不变；
-- W&B 记录 loss、tokens、学习率、吞吐、显存；
-- 生成 `checkpoint-2`、HF safetensors 和 `c2kv_config.json`。
+- [x] runtime imports 全部成功；
+- [x] Qwen3-0.6B 两步 BF16 smoke 无 NaN/OOM；
+- [x] C2KV Q/K/V 与 special embedding 发生更新；
+- [x] 导出模型与原模型的 310 个 base tensor 逐一 `torch.equal`，变更数为 0；
+- [x] W&B 记录 loss、grad norm、学习率、step 时间和显存；
+- [x] 生成 `checkpoint-2`、HF safetensors 和 `c2kv_config.json`。
 
 ### Gate B：HF/MCore 数值 parity
 
@@ -231,6 +247,10 @@ python evaluate.py --config configs/eval/qwen3_4b_hotpotqa.json
 - BF16 设定明确误差阈值并保存逐层最大/平均误差；
 - HF -> MCore -> HF round trip 检查 `gist_{q,k,v}_proj` 和特殊 embedding；
 - 固定 greedy generation 对齐已保留的 Transformers eval。
+
+本轮已完成其中的 bridge 通用精度测试：token diff 为 0，带 loss 的 mean diff 为
+`0.0014582`、max diff 为 `0.0154762`；并验证导出模型中存在 85 个 C2KV tensor（28 层三组
+`gist_{q,k,v}_proj` 加两行 special embedding）。这仍不等价于上述 C2KV memory 路径逐层 parity。
 
 ### Gate C：并行和恢复
 
@@ -248,31 +268,69 @@ python evaluate.py --config configs/eval/qwen3_4b_hotpotqa.json
 - 决定采用 grouped sparse GEMM、memory-row gather，或专用 fused projection kernel；
 - 长上下文、动态 ratio、多文档数量分桶后再进入正式预训练。
 
-## 12. H200 状态与复跑清单
+## 12. H200 实测状态与复跑信息
 
-本轮两次连接 `H200-2035` 均在认证提示出现前失败：
+2026-09-05 已成功连接 `H200-2035`，实际计算节点 hostname 为 `10-116-218-91`；节点可见
+8 张 NVIDIA H200（每张约 143771 MiB），本次使用 GPU 0。代码与环境位置：
 
 ```text
-Connection timed out during banner exchange
-Connection to UNKNOWN port 65535 timed out
+repo: /mtc/chenjunyi1/project/C2KV-megatron
+env:  /mtc/chenjunyi1/miniconda3/envs/c2kv-megatron
 ```
 
-配置展开显示目标通过 SSH jump host 转发；对 jump host 的 TCP 22 探测同样无响应。因此当前
-阻塞点是本机到跳板的网络/VPN/主机状态，不是已确认的密码错误。尚未创建远端
-`c2kv-megatron` 环境，尚未上传代码，尚未产生真实 W&B run。
+环境由已有服务器环境克隆后在独立环境内修正，不修改仓库包管理文件，也没有触碰已有的 dirty
+`/mtc/chenjunyi1/project/ms-swift` checkout。核心版本：
 
-网络恢复后的操作顺序：
+| 组件 | 实测版本/commit |
+| --- | --- |
+| Python | 3.11.14 |
+| PyTorch | 2.9.1+cu128 |
+| CUDA runtime | 12.8 |
+| ms-swift | 4.6.0.dev0 / `16e89c8b713055c8f8452c2a697e4866839172a3` |
+| mcore-bridge | 1.7.0.dev0 / `4f2a95c9548bcd588b6f7763074debcdbf6b2d69` |
+| Megatron Core | 0.16.1 |
+| Transformer Engine | 2.18.0 |
+| Transformers | 4.57.6 |
+| W&B | 0.23.1 |
 
-1. 登录并记录 `hostname`、GPU、driver、CUDA、Python、磁盘；
-2. 创建或克隆独立 `c2kv-megatron` 环境，不修改仓库包管理文件；
-3. 从 `origin/megatron` clone/pull，核对 commit；
-4. 运行 `check_environment.py --strict --require-wandb`；
-5. 运行全部本地测试与 dry-run；
-6. W&B 通过环境变量或交互登录，密钥不落盘、不写报告；
-7. 执行 Gate A，两步 smoke；
-8. 设置 `C2KV_SMOKE_OUTPUT` 后跑 integration test；
-9. 保存 W&B run URL、checkpoint 路径、环境版本和失败日志摘要；
-10. 继续 Gate B/C，未通过前不启动大规模作业。
+Transformer Engine 在该 Torch/CUDA 组合上没有可直接复用的完整 wheel；独立环境中用现有
+cuDNN/NCCL headers 编译，并设置 `NVTE_WITH_NCCL_EP=0`。BF16 H200 matmul 与
+`transformer_engine.pytorch` import 均已通过。Apex 未安装，MCore 使用 Torch Norm，ms-swift
+自动关闭 gradient accumulation fusion；这不影响本次 correctness smoke，但正式性能基准应安装
+匹配版本后重新测量。
+
+本次成功训练运行：
+
+```text
+model: Qwen/Qwen3-0.6B
+dtype: BF16
+steps: 2
+loss: 1.09200525 -> 0.96285915
+grad_norm: 11.70044041 -> 8.08611202
+peak reported memory: 4.18 GiB
+checkpoint: outputs/qwen3-0.6b-smoke/v4-20260905-132731/checkpoint-2
+W&B run: https://wandb.ai/chenjunyi-horse/c2kv-megatron-smoke/runs/usu2hqjc
+```
+
+训练时依次修复了三类不能靠静态测试发现的问题：ms-swift 早期 dataset 参数验证、TE QKV
+构造参数差异、以及 Q/K/V 分开混合导致的 TE packed layout 破坏。最终实现先混合 fused QKV，
+再生成共享存储的 Q/K/V views。随后又把 legacy eval 的 Transformers 4.x/5.x 差异集中到
+`python/models/transformers_compat.py`，并完成真实 `generate_gist` 前向。
+
+复跑 Gate A：
+
+```bash
+conda activate c2kv-megatron
+cd /mtc/chenjunyi1/project/C2KV-megatron
+git switch megatron
+git pull --ff-only origin megatron
+python check_environment.py --config configs/train/qwen3_0_6b_smoke.json --strict --require-wandb
+python run_tests.py --suite all
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_megatron.py \
+  --config configs/train/qwen3_0_6b_smoke.json
+```
+
+W&B 认证保存在用户级认证文件中；任何密码和 API key 均未写入仓库、配置、报告或 Git 历史。
 
 ## 13. 已核对的外部 API 基线
 
@@ -327,9 +385,9 @@ metric 移到 `c2kv/eval/`，每迁一个 backend 都保留固定样本输出 pa
 
 ## 15. 建议的后续任务拆分
 
-1. **P0：恢复 H200 网络并关闭 Gate A。** 这是当前唯一阻止“训练正确”结论的外部条件。
-2. **P0：补齐 HF/MCore parity。** 尤其是 Qwen3 q/k norm、RoPE、特殊 embedding、checkpoint round trip。
-3. **P1：实现 sparse mask backend。** dense 4096 只适合 correctness，不适合更大规模预训练。
+1. **P0：补齐 C2KV 专用 HF/MCore parity。** 对齐 Qwen3 q/k norm、RoPE、special embedding、memory KV 和 logits。
+2. **P0：验证 native resume。** 必须覆盖 optimizer、RNG、global step 与下一步 loss 连续性。
+3. **P1：实现 sparse mask backend。** dense 512 只适合 correctness，不适合更大规模预训练。
 4. **P1：TP=2 + SP 与 PP=2。** 把“设计支持”转成可复现证据。
 5. **P1：吞吐优化 memory-only QKV。** 避免所有 token 同时计算 base/C2KV 两套投影。
 6. **P2：Qwen3-MoE/目标大模型专用 architecture gate。** 先单层、再单卡、再 EP。
