@@ -22,6 +22,7 @@
 from transformers.configuration_utils import PretrainedConfig
 
 from ..gist_utils import GistConfigMixin
+from ..transformers_compat import configure_rope
 
 
 class LlamaConfig(PretrainedConfig, GistConfigMixin):
@@ -207,13 +208,11 @@ class LlamaConfig(PretrainedConfig, GistConfigMixin):
         self.pretraining_tp = pretraining_tp
         self.use_cache = use_cache
         self.rope_theta = rope_theta
-        self.rope_parameters = rope_scaling
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
         self.mlp_bias = mlp_bias
         self.head_dim = head_dim if head_dim is not None else self.hidden_size // self.num_attention_heads
-        self.standardize_rope_params()
-        self.validate_rope()
+        configure_rope(self, rope_theta, rope_scaling)
 
         super().__init__(
             pad_token_id=pad_token_id,

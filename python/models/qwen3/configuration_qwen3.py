@@ -18,6 +18,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 
 from ..gist_utils import GistConfigMixin
+from ..transformers_compat import configure_rope, validate_layer_types
 
 
 logger = logging.get_logger(__name__)
@@ -207,11 +208,9 @@ class Qwen3Config(PretrainedConfig, GistConfigMixin):
         self.rms_norm_eps = rms_norm_eps
         self.use_cache = use_cache
         self.rope_theta = rope_theta
-        self.rope_parameters = rope_scaling
         self.attention_bias = attention_bias
         self.attention_dropout = attention_dropout
-        self.standardize_rope_params()
-        self.validate_rope()
+        configure_rope(self, rope_theta, rope_scaling)
 
         self.layer_types = layer_types
         if self.layer_types is None:
@@ -221,7 +220,7 @@ class Qwen3Config(PretrainedConfig, GistConfigMixin):
                 else "full_attention"
                 for i in range(self.num_hidden_layers)
             ]
-        self.validate_layer_type()
+        validate_layer_types(self)
 
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
