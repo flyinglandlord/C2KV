@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 from transformers.integrations import use_kernel_forward_from_hub
+
+
+def auto_docstring(documented_object):
+    """Skip version-sensitive docstring synthesis for vendored model code."""
+
+    return documented_object
+
+
 try:
     from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
 except ImportError:
@@ -37,4 +45,5 @@ __all__ = [
     "maybe_autocast",
     "merge_with_config_defaults",
     "capture_outputs",
+    "auto_docstring",
 ]

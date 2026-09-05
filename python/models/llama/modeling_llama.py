@@ -39,10 +39,11 @@ from transformers.modeling_outputs import (
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.processing_utils import Unpack
-from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple, logging
+from transformers.utils import TransformersKwargs, can_return_tuple, logging
 from .configuration_llama import LlamaConfig
 
 from ..transformers_compat import (
+    auto_docstring,
     capture_outputs,
     maybe_autocast,
     merge_with_config_defaults,
