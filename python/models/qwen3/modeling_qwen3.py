@@ -21,7 +21,6 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationMixin
-from transformers.masking_utils import create_causal_mask, create_sliding_window_causal_mask
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_layers import (
     GenericForQuestionAnswering,
@@ -39,6 +38,8 @@ from .configuration_qwen3 import Qwen3Config
 from ..transformers_compat import (
     auto_docstring,
     capture_outputs,
+    create_causal_mask,
+    create_sliding_window_causal_mask,
     maybe_autocast,
     merge_with_config_defaults,
     use_kernel_forward_from_hub,

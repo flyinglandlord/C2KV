@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+from inspect import signature
+
+import torch
 from transformers.integrations import use_kernel_forward_from_hub
+from transformers.masking_utils import (
+    create_causal_mask as _create_causal_mask,
+    create_sliding_window_causal_mask as _create_sliding_window_causal_mask,
+)
 from transformers.modeling_rope_utils import rope_config_validation
 
 
@@ -44,6 +51,57 @@ def validate_layer_types(config):
         raise ValueError(f"unsupported layer types: {sorted(unknown)}")
 
 
+def _cache_position(input_embeds, past_key_values):
+    past_length = past_key_values.get_seq_length() if past_key_values is not None else 0
+    return torch.arange(
+        past_length,
+        past_length + input_embeds.shape[1],
+        device=input_embeds.device,
+    )
+
+
+def create_causal_mask(
+    config,
+    input_embeds,
+    attention_mask,
+    past_key_values=None,
+    position_ids=None,
+    cache_position=None,
+    **kwargs,
+):
+    call_kwargs = dict(
+        past_key_values=past_key_values,
+        position_ids=position_ids,
+        **kwargs,
+    )
+    if "cache_position" in signature(_create_causal_mask).parameters:
+        call_kwargs["cache_position"] = cache_position if cache_position is not None else _cache_position(
+            input_embeds, past_key_values
+        )
+    return _create_causal_mask(config, input_embeds, attention_mask, **call_kwargs)
+
+
+def create_sliding_window_causal_mask(
+    config,
+    input_embeds,
+    attention_mask,
+    past_key_values=None,
+    position_ids=None,
+    cache_position=None,
+    **kwargs,
+):
+    call_kwargs = dict(
+        past_key_values=past_key_values,
+        position_ids=position_ids,
+        **kwargs,
+    )
+    if "cache_position" in signature(_create_sliding_window_causal_mask).parameters:
+        call_kwargs["cache_position"] = cache_position if cache_position is not None else _cache_position(
+            input_embeds, past_key_values
+        )
+    return _create_sliding_window_causal_mask(config, input_embeds, attention_mask, **call_kwargs)
+
+
 try:
     from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
 except ImportError:
@@ -80,5 +138,7 @@ __all__ = [
     "capture_outputs",
     "auto_docstring",
     "configure_rope",
+    "create_causal_mask",
+    "create_sliding_window_causal_mask",
     "validate_layer_types",
 ]
