@@ -102,6 +102,14 @@ def create_sliding_window_causal_mask(
     return _create_sliding_window_causal_mask(config, input_embeds, attention_mask, **call_kwargs)
 
 
+def get_attention_interface(attention_registry, implementation, eager_forward):
+    """Resolve an attention backend across registry API versions."""
+
+    if hasattr(attention_registry, "get_interface"):
+        return attention_registry.get_interface(implementation, eager_forward)
+    return attention_registry.get(implementation, eager_forward)
+
+
 try:
     from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
 except ImportError:
@@ -140,5 +148,6 @@ __all__ = [
     "configure_rope",
     "create_causal_mask",
     "create_sliding_window_causal_mask",
+    "get_attention_interface",
     "validate_layer_types",
 ]

@@ -45,6 +45,7 @@ from ..transformers_compat import (
     auto_docstring,
     capture_outputs,
     create_causal_mask,
+    get_attention_interface,
     maybe_autocast,
     merge_with_config_defaults,
     use_kernel_forward_from_hub,
@@ -272,7 +273,8 @@ class LlamaAttention(nn.Module):
             else:
                 key_states, value_states = past_key_values.update(key_states, value_states, self.layer_idx)
 
-        attention_interface: Callable = ALL_ATTENTION_FUNCTIONS.get_interface(
+        attention_interface: Callable = get_attention_interface(
+            ALL_ATTENTION_FUNCTIONS,
             self.config._attn_implementation, eager_attention_forward
         )
 
@@ -329,7 +331,8 @@ class LlamaAttention(nn.Module):
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
-        attention_interface: Callable = ALL_ATTENTION_FUNCTIONS.get_interface(
+        attention_interface: Callable = get_attention_interface(
+            ALL_ATTENTION_FUNCTIONS,
             self.config._attn_implementation, eager_attention_forward
         )
 
