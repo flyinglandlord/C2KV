@@ -20,7 +20,7 @@ Megatron-SWIFT 调度；Transformers 只保留在导出后的评测兼容层。�
 | --- | --- | --- |
 | 本地纯逻辑 | 通过 | 配置、压缩率调度、layout、mask、RoPE 位置、蒸馏对齐、checkpoint metadata、JSON/JSONL 索引，共 20 个单元测试 |
 | 本地静态入口 | 通过 | 全量语法编译、训练/导出/评测 dry-run、`git diff --check` |
-| H200 训练运行时 | 通过 | Qwen3-0.6B、BF16、单张 H200、2 step 前反向、MCore/HF checkpoint、W&B 在线同步 |
+| H200 训练运行时 | 通过 | Qwen3-0.6B、BF16、单张 H200、2 step 前反向、MCore/HF checkpoint、W&B 在线同步、24/24 测试通过 |
 | H200 导出与评测 | 通过 | native MCore→HF 导出、转换精度测试、legacy Qwen3 C2KV 加载与 `generate_gist` 前向 |
 
 当前结论只覆盖单卡 Gate A 和一次 bridge/eval smoke；TP、PP、DP、SP、完整 HF/MCore C2KV
@@ -311,6 +311,9 @@ peak reported memory: 4.18 GiB
 checkpoint: outputs/qwen3-0.6b-smoke/v4-20260905-132731/checkpoint-2
 W&B run: https://wandb.ai/chenjunyi-horse/c2kv-megatron-smoke/runs/usu2hqjc
 ```
+
+把真实输出目录传给 integration suite 后，服务器端 unit、runtime import、Transformers eval import
+与 checkpoint 权重检查共 24 项全部通过，无 skip。
 
 训练时依次修复了三类不能靠静态测试发现的问题：ms-swift 早期 dataset 参数验证、TE QKV
 构造参数差异、以及 Q/K/V 分开混合导致的 TE packed layout 破坏。最终实现先混合 fused QKV，
