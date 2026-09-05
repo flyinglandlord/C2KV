@@ -59,6 +59,16 @@ def build_ms_swift_arguments(config: ExperimentConfig) -> List[str]:
         "report_to": ["wandb", "tensorboard"],
         "wandb_project": training.wandb_project,
     }
+    # MegatronSftArguments validates the framework-facing dataset fields during
+    # construction, before C2KVMegatronSft can replace loading with our lazy
+    # C2KVFileDataset implementation.  Pass the real source paths through so
+    # that ms-swift's early validation and our data layer share one source of
+    # truth.  Splitting stays owned by C2KV, hence the explicit zero ratio.
+    if config.data.train:
+        values["dataset"] = list(config.data.train)
+    if config.data.validation:
+        values["val_dataset"] = list(config.data.validation)
+    values["split_dataset_ratio"] = 0.0
     if training.wandb_run_name:
         values["wandb_exp_name"] = training.wandb_run_name
     if training.gradient_checkpointing:
