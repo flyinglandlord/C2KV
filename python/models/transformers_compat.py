@@ -26,8 +26,8 @@ except ImportError:
     def use_kernel_func_from_hub(_kernel_name):
         return lambda function: function
 
-    def use_kernelized_func(function):
-        return function
+    def use_kernelized_func(_kernel_function):
+        return lambda model_class: model_class
 
 
 __all__ = [
