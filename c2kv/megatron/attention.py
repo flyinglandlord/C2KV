@@ -86,32 +86,77 @@ class C2KVSelfAttention(SelfAttention):
         residual = torch.where(memory_mask.unsqueeze(-1), source_mean.transpose(0, 1), 0)
         return hidden_states + residual
 
-    def get_query_key_value_tensors(self, hidden_states, *args, **kwargs):
-        base_outputs = super().get_query_key_value_tensors(hidden_states, *args, **kwargs)
+    def get_query_key_value_tensors(
+        self,
+        hidden_states,
+        key_value_states=None,
+        output_gate=False,
+        split_qkv=True,
+    ):
         if self._c2kv_memory_mask is None:
-            return base_outputs
+            return super().get_query_key_value_tensors(
+                hidden_states,
+                key_value_states,
+                output_gate=output_gate,
+                split_qkv=split_qkv,
+            )
+        if output_gate:
+            raise NotImplementedError("C2KV memory projection does not yet support gated attention")
+
+        # Blend the fused projection before splitting Q/K/V. Transformer Engine
+        # relies on the resulting views sharing one storage with MCore's packed
+        # head layout; blending the three tensors separately breaks that contract.
+        base_mixed_qkv, split_sizes = super().get_query_key_value_tensors(
+            hidden_states,
+            key_value_states,
+            output_gate=False,
+            split_qkv=False,
+        )
 
         base_projection = self.linear_qkv
         self.linear_qkv = self.c2kv_linear_qkv
         try:
-            memory_outputs = super().get_query_key_value_tensors(
-                self._memory_projection_input(hidden_states), *args, **kwargs
+            memory_mixed_qkv, _ = super().get_query_key_value_tensors(
+                self._memory_projection_input(hidden_states),
+                key_value_states,
+                output_gate=False,
+                split_qkv=False,
             )
         finally:
             self.linear_qkv = base_projection
 
-        sequence_length = base_outputs[0].shape[0]
+        sequence_length = base_mixed_qkv.shape[0]
         selector = self._local_memory_mask(sequence_length).transpose(0, 1)
-        blended = []
-        for base_value, memory_value in zip(base_outputs, memory_outputs):
-            if not torch.is_tensor(base_value):
-                blended.append(base_value)
-                continue
-            value_selector = selector
-            while value_selector.ndim < base_value.ndim:
-                value_selector = value_selector.unsqueeze(-1)
-            blended.append(torch.where(value_selector, memory_value, base_value))
-        return tuple(blended)
+        while selector.ndim < base_mixed_qkv.ndim:
+            selector = selector.unsqueeze(-1)
+        mixed_qkv = torch.where(selector, memory_mixed_qkv, base_mixed_qkv)
+        if not split_qkv:
+            return mixed_qkv, split_sizes
+
+        query, key, value = torch.split(mixed_qkv, split_sizes, dim=3)
+        query = query.reshape(
+            query.shape[0],
+            query.shape[1],
+            -1,
+            self.hidden_size_per_attention_head,
+        )
+        if self.config.num_query_groups < self.world_size:
+            rank_within_query_group = (
+                mpu.get_tensor_model_parallel_rank()
+                % (self.world_size // self.config.num_query_groups)
+            )
+            local_query_heads = self.num_attention_heads_per_partition // (
+                self.world_size // self.config.num_query_groups
+            )
+            query_start = rank_within_query_group * local_query_heads
+            query = query[:, :, query_start : query_start + local_query_heads, :]
+        if self.q_layernorm is not None:
+            query = self.q_layernorm(query)
+        if self.k_layernorm is not None:
+            key = self.k_layernorm(key)
+        if self.config.test_mode:
+            self.run_realtime_tests()
+        return query, key, value
 
     def _backward_qkv_proj(self):
         super()._backward_qkv_proj()
