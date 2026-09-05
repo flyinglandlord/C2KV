@@ -24,11 +24,16 @@ from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_u
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple
-from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
 from transformers.utils.output_capturing import capture_outputs
 from .configuration_qwen2 import Qwen2Config
 
-from ..transformers_compat import use_kernel_forward_from_hub, use_kernel_func_from_hub, use_kernelized_func
+from ..transformers_compat import (
+    maybe_autocast,
+    merge_with_config_defaults,
+    use_kernel_forward_from_hub,
+    use_kernel_func_from_hub,
+    use_kernelized_func,
+)
 from ..gist_utils import (
     get_prepare_gist_input_func, process_context_input_ids,
     gen_gist_proj, init_gist_proj, init_gist_embed, GistModelOutputWithPast,

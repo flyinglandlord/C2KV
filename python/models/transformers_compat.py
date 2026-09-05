@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from transformers.integrations import use_kernel_forward_from_hub
+try:
+    from transformers.utils.generic import maybe_autocast, merge_with_config_defaults
+except ImportError:
+    from torch import autocast as maybe_autocast
+
+    def merge_with_config_defaults(function):
+        return function
 
 try:
     from transformers.integrations import use_kernel_func_from_hub, use_kernelized_func
@@ -21,4 +28,6 @@ __all__ = [
     "use_kernel_forward_from_hub",
     "use_kernel_func_from_hub",
     "use_kernelized_func",
+    "maybe_autocast",
+    "merge_with_config_defaults",
 ]
