@@ -1,4 +1,5 @@
 import json
+from importlib import import_module
 import torch
 from packaging import version
 from logging import getLogger
@@ -53,16 +54,12 @@ def get_model_class(
     model_name_or_path: str,
     gist_param_type: str,
 ) -> Tuple[Type[PretrainedConfig], Type[PreTrainedModel]]:
-    if gist_param_type == "qkv":
-        from .llama import LlamaForCausalLM, LlamaConfig
-        from .qwen2_5 import Qwen2ForCausalLM, Qwen2Config
-        from .qwen3 import Qwen3ForCausalLM, Qwen3Config
-    else:
+    if gist_param_type != "qkv":
         raise ValueError(f"Unsupported gist_param_type: {gist_param_type}")
-    ARCHITECTURE_TO_CLASS = {
-        'LlamaForCausalLM': (LlamaConfig, LlamaForCausalLM),
-        'Qwen2ForCausalLM': (Qwen2Config, Qwen2ForCausalLM),
-        'Qwen3ForCausalLM': (Qwen3Config, Qwen3ForCausalLM),
+    architecture_registry = {
+        "LlamaForCausalLM": (".llama", "LlamaConfig", "LlamaForCausalLM"),
+        "Qwen2ForCausalLM": (".qwen2_5", "Qwen2Config", "Qwen2ForCausalLM"),
+        "Qwen3ForCausalLM": (".qwen3", "Qwen3Config", "Qwen3ForCausalLM"),
     }
     probe_config = AutoConfig.from_pretrained(
         model_name_or_path, 
@@ -70,10 +67,11 @@ def get_model_class(
         local_files_only=True,
     )
     architecture = probe_config.architectures[0]
-    if architecture not in ARCHITECTURE_TO_CLASS:
+    if architecture not in architecture_registry:
         raise ValueError(f"Unsupported architecture: {architecture}")
-    config_class, model_class = ARCHITECTURE_TO_CLASS[architecture]
-    return config_class, model_class
+    module_name, config_name, model_name = architecture_registry[architecture]
+    model_module = import_module(module_name, package=__package__)
+    return getattr(model_module, config_name), getattr(model_module, model_name)
 
 
 def get_model_and_tokenizer(
