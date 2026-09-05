@@ -18,20 +18,17 @@ class C2KVSelfAttention(SelfAttention):
 
     def __init__(self, config, submodules, layer_number, *args, **kwargs):
         super().__init__(config, submodules, layer_number, *args, **kwargs)
-        module_name = kwargs.get("name")
         self.c2kv_linear_qkv = submodules.linear_qkv(
-            config.hidden_size,
+            self.config.hidden_size,
             self.linear_qkv_out_dim,
-            config=config,
-            init_method=config.init_method,
+            config=self.config,
+            init_method=self.config.init_method,
             gather_output=False,
-            bias=config.add_bias_linear or config.add_qkv_bias,
+            bias=self.config.add_bias_linear or self.config.add_qkv_bias,
             skip_bias_add=False,
             is_expert=False,
             tp_comm_buffer_name="c2kv_qkv",
             tp_group=self.pg_collection.tp,
-            pg_collection=self.pg_collection,
-            name=(f"{module_name}.c2kv_linear_qkv" if module_name else None),
         )
         self.c2kv_residual_type = get_runtime_settings().residual_type
         self._c2kv_memory_mask = None
