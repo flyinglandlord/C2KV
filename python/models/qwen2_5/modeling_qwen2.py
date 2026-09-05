@@ -24,10 +24,10 @@ from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_u
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple
-from transformers.utils.output_capturing import capture_outputs
 from .configuration_qwen2 import Qwen2Config
 
 from ..transformers_compat import (
+    capture_outputs,
     maybe_autocast,
     merge_with_config_defaults,
     use_kernel_forward_from_hub,

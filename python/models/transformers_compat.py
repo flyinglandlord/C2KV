@@ -12,6 +12,12 @@ except ImportError:
         return function
 
 try:
+    from transformers.utils.output_capturing import capture_outputs
+except ImportError:
+    def capture_outputs(function):
+        return function
+
+try:
     from transformers.integrations import use_kernel_func_from_hub, use_kernelized_func
 except ImportError:
     # Transformers 4.57 removed these optional decorators. Their fallback
@@ -30,4 +36,5 @@ __all__ = [
     "use_kernelized_func",
     "maybe_autocast",
     "merge_with_config_defaults",
+    "capture_outputs",
 ]
