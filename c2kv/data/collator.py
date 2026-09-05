@@ -70,7 +70,9 @@ class C2KVCollator:
         position_ids = torch.zeros((batch_size, target), dtype=torch.long)
         objective_ids = torch.zeros((batch_size, target), dtype=torch.uint8)
         memory_mask = torch.zeros((batch_size, target), dtype=torch.bool)
-        special_token_types = torch.full((batch_size, target), -1, dtype=torch.int8)
+        # These values index the two C2KV special embeddings in the MCore model,
+        # so keep the tensor in PyTorch's canonical index dtype end to end.
+        special_token_types = torch.full((batch_size, target), -1, dtype=torch.long)
         max_compression_sources = max(
             (len(slot.compression_source_indices) for plan in batch for slot in plan.memory_slots),
             default=1,

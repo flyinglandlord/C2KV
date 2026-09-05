@@ -51,7 +51,7 @@ class C2KVGPTModel(GPTModel):
         if hidden_states is None or self._c2kv_special_token_types is None:
             return hidden_states
         special_token_types = self._local_special_token_types(hidden_states.shape[0])
-        special_token_types = special_token_types.transpose(0, 1)
+        special_token_types = special_token_types.transpose(0, 1).long()
         valid = special_token_types >= 0
         replacement = self.c2kv_special_embeddings[special_token_types.clamp_min(0)]
         return torch.where(valid.unsqueeze(-1), replacement, hidden_states)
