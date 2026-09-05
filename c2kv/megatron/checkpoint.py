@@ -36,8 +36,14 @@ def write_c2kv_manifest(output_dir: str, config: ExperimentConfig) -> Path:
             gist_overlap=config.c2kv.overlap_tokens,
             gist_extra_embed_num=2,
         )
-        if config.c2kv.memory_token_id >= 0:
-            hf_config["gist_token_id"] = config.c2kv.memory_token_id
+        gist_token_id = config.c2kv.memory_token_id
+        if gist_token_id < 0:
+            gist_token_id = hf_config.get("eos_token_id")
+            if isinstance(gist_token_id, list):
+                gist_token_id = gist_token_id[0] if gist_token_id else None
+        if gist_token_id is None:
+            raise ValueError("cannot infer gist_token_id without an explicit memory or EOS token id")
+        hf_config["gist_token_id"] = gist_token_id
         with hf_config_path.open("w", encoding="utf-8") as handle:
             json.dump(hf_config, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
